@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Bharat Votex — Live Results</title>
+  <link rel="stylesheet" href="/static/css/style.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body class="center-page">
+
+  <div class="card results-card">
+    <div class="logo-block">
+      <div class="logo-icon">📊</div>
+      <h1 class="brand">Live Vote Results</h1>
+      <p class="tagline" id="lastUpdated">Loading…</p>
+    </div>
+
+    <canvas id="barChart" height="220"></canvas>
+
+    <div class="results-table" id="resultsTable">
+      <!-- Populated by JS -->
+    </div>
+
+    <div class="btn-row" style="margin-top:1.5rem;">
+      <a href="/" class="btn btn-outline">🏠 Home</a>
+      <button class="btn btn-primary" onclick="loadResults()">🔄 Refresh</button>
+    </div>
+  </div>
+
+  <script>
+    let chart = null;
+    const COLORS = ["#4f46e5","#059669","#d97706","#dc2626"];
+
+    async function loadResults() {
+      try {
+        const res  = await fetch("/api/results");
+        const data = await res.json();
+        if (!data.success) return;
+
+        const results    = data.results;
+        const labels     = results.map(r => r.name);
+        const votes      = results.map(r => r.votes);
+        const total      = votes.reduce((a, b) => a + b, 0);
+
+        // Chart
+        if (chart) {
+          chart.data.labels         = labels;
+          chart.data.datasets[0].data = votes;
+          chart.update();
+        } else {
+          const ctx = document.getElementById("barChart").getContext("2d");
+          chart = new Chart(ctx, {
+            type: "bar",
+            data: {
+              labels,
+              datasets: [{
+                label: "Votes",
+                data: votes,
+                backgroundColor: COLORS,
+                borderRadius: 8,
+                borderSkipped: false,
+              }]
+            },
+            options: {
+              responsive: true,
+              plugins: { legend: { display: false } },
+              scales: {
+                y: {
+                  beginAtZero: true,
+                  ticks: { stepSize: 1 },
+                  grid: { color: "rgba(0,0,0,0.06)" }
+                },
+                x: { grid: { display: false } }
+              }
+            }
+          });
+        }
+
+        // Table
+        const table = document.getElementById("resultsTable");
+        table.innerHTML = results.map((r, i) => {
+          const pct = total > 0 ? ((r.votes / total) * 100).toFixed(1) : 0;
+          return `
+            <div class="result-row">
+              <span class="result-symbol">${r.symbol}</span>
+              <div class="result-info">
+                <div class="result-name">${r.name}</div>
+                <div class="result-party">${r.party}</div>
+                <div class="result-bar-wrap">
+                  <div class="result-bar-fill" style="width:${pct}%;background:${COLORS[i] || '#888'}"></div>
+                </div>
+              </div>
+              <div class="result-votes">
+                <span class="votes-count">${r.votes}</span>
+                <span class="votes-pct">${pct}%</span>
+              </div>
+            </div>
+          `;
+        }).join("");
+
+        document.getElementById("lastUpdated").textContent =
+          `Total votes: ${total} · Last updated: ${new Date().toLocaleTimeString()}`;
+
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    loadResults();
+    setInterval(loadResults, 5000); // Auto-refresh every 5s
+  </script>
+</body>
+</html>

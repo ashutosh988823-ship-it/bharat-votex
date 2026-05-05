@@ -1,0 +1,135 @@
+<DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Bharat Votex — Cast Your Vote</title>
+  <link rel="stylesheet" href="/static/css/style.css"/>
+</head>
+<body class="center-page">
+
+  <div class="card vote-card">
+    <div class="logo-block">
+      <div class="logo-icon">🗳️</div>
+      <h1 class="brand">Cast Your Vote</h1>
+      <p class="tagline">Select your candidate and submit</p>
+    </div>
+
+    <div class="steps-bar">
+      <div class="step done">1. ID</div>
+      <div class="step-arrow">→</div>
+      <div class="step done">2. Face Scan</div>
+      <div class="step-arrow">→</div>
+      <div class="step active">3. Vote</div>
+    </div>
+
+    <p class="vote-instruction">Choose one candidate below. Your vote is secret and encrypted.</p>
+
+    <div class="candidates" id="candidateList">
+      <!-- Dynamically populated -->
+    </div>
+
+    <div id="voteMsg" class="msg hidden"></div>
+
+    <button class="btn btn-primary btn-vote" id="voteBtn" disabled>
+      <span id="voteBtnText">🗳️ Submit Vote</span>
+    </button>
+
+    <p class="vote-warning">⚠️ You can only vote once. This action cannot be undone.</p>
+  </div>
+
+  <div class="modal hidden" id="confirmModal">
+    <div class="modal-box">
+      <h2>Confirm Your Vote</h2>
+      <p>You are voting for:</p>
+      <div class="modal-candidate" id="modalCandidate"></div>
+      <div class="btn-row">
+        <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-primary" id="confirmBtn">✅ Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const candidates = [
+      { id: "party_a", name: "Priya Sharma",  party: "National Progress Party",    symbol: "🌟" },
+      { id: "party_b", name: "Rajesh Kumar",  party: "United India Front",          symbol: "🌿" },
+      { id: "party_c", name: "Anita Patel",   party: "People's Democratic Union",  symbol: "🔆" },
+      { id: "nota",    name: "NOTA",           party: "None of the Above",          symbol: "✖" },
+    ];
+
+    let selectedCandidate = null;
+    const voteBtn   = document.getElementById("voteBtn");
+    const msg       = document.getElementById("voteMsg");
+    const list      = document.getElementById("candidateList");
+
+    // Build candidate cards
+    candidates.forEach(c => {
+      const card = document.createElement("div");
+      card.className = "candidate-card";
+      card.dataset.id = c.id;
+      card.innerHTML = `
+        <span class="cand-symbol">${c.symbol}</span>
+        <div class="cand-info">
+          <div class="cand-name">${c.name}</div>
+          <div class="cand-party">${c.party}</div>
+        </div>
+        <div class="cand-radio"></div>
+      `;
+      card.addEventListener("click", () => selectCandidate(c, card));
+      list.appendChild(card);
+    });
+
+    function selectCandidate(c, card) {
+      document.querySelectorAll(".candidate-card").forEach(el => el.classList.remove("selected"));
+      card.classList.add("selected");
+      selectedCandidate = c;
+      voteBtn.disabled = false;
+    }
+
+    voteBtn.addEventListener("click", () => {
+      if (!selectedCandidate) return;
+      document.getElementById("modalCandidate").innerHTML =
+        `<span>${selectedCandidate.symbol}</span> <strong>${selectedCandidate.name}</strong><br><small>${selectedCandidate.party}</small>`;
+      document.getElementById("confirmModal").classList.remove("hidden");
+    });
+
+    document.getElementById("confirmBtn").addEventListener("click", async () => {
+      closeModal();
+      voteBtn.disabled = true;
+      voteBtn.innerHTML = '<span>Submitting…</span>';
+
+      try {
+        const res  = await fetch("/api/vote/cast", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ candidate: selectedCandidate.id })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          showMsg("✅ " + data.message, "success");
+          setTimeout(() => window.location.href = "/results", 2500);
+        } else {
+          showMsg("❌ " + data.message, "error");
+          voteBtn.disabled = false;
+          voteBtn.innerHTML = '<span>🗳️ Submit Vote</span>';
+        }
+      } catch {
+        showMsg("❌ Server error. Please try again.", "error");
+        voteBtn.disabled = false;
+        voteBtn.innerHTML = '<span>🗳️ Submit Vote</span>';
+      }
+    });
+
+    function closeModal() {
+      document.getElementById("confirmModal").classList.add("hidden");
+    }
+
+    function showMsg(text, type) {
+      msg.textContent = text;
+      msg.className = `msg ${type}`;
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Bharat Votex — Secure Digital Voting</title>
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body class="center-page">
+
+  <div class="card login-card">
+    <div class="logo-block">
+      <div class="logo-icon">🗳️</div>
+      <h1 class="brand">Bharat Votex</h1>
+      <p class="tagline">AI-Powered Secure Electronic Voting System</p>
+    </div>
+
+    <div class="divider"></div>
+
+    <form id="loginForm" autocomplete="off">
+      <label class="field-label" for="voter_id">Voter ID</label>
+      <input
+        type="text"
+        id="voter_id"
+        name="voter_id"
+        class="field-input"
+        placeholder="e.g. VTR001"
+        maxlength="20"
+        required
+      />
+      <p class="field-hint">Demo IDs: VTR001, VTR002, VTR003</p>
+
+      <button type="submit" class="btn btn-primary" id="loginBtn">
+        <span id="loginBtnText">Verify Voter ID →</span>
+      </button>
+    </form>
+
+    <div id="loginMsg" class="msg hidden"></div>
+
+    <div class="divider"></div>
+    <div class="footer-links">
+      <a href="/results">📊 Live Results</a>
+      <span>·</span>
+      <a href="/admin">🛡️ Admin Panel</a>
+    </div>
+  </div>
+
+  <script>
+    const form = document.getElementById("loginForm");
+    const msg  = document.getElementById("loginMsg");
+    const btn  = document.getElementById("loginBtn");
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const voter_id = document.getElementById("voter_id").value.trim().toUpperCase();
+      if (!voter_id) return;
+
+      btn.disabled = true;
+      btn.innerHTML = '<span>Checking...</span>';
+      msg.className = "msg hidden";
+
+      try {
+        const res  = await fetch("/api/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ voter_id })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          showMsg(`✅ Welcome, ${data.name}! Redirecting to biometric scan...`, "success");
+          setTimeout(() => window.location.href = "/verify", 1500);
+        } else {
+          showMsg("❌ " + data.message, "error");
+          btn.disabled = false;
+          btn.innerHTML = '<span>Verify Voter ID →</span>';
+        }
+      } catch {
+        showMsg("❌ Server error. Please try again.", "error");
+        btn.disabled = false;
+        btn.innerHTML = '<span>Verify Voter ID →</span>';
+      }
+    });
+
+    function showMsg(text, type) {
+      msg.textContent = text;
+      msg.className = `msg ${type}`;
+    }
+  </script>
+</body>
+</html>

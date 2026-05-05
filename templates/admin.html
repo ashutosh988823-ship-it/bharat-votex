@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Bharat Votex — Admin Panel</title>
+  <link rel="stylesheet" href="/static/css/style.css"/>
+</head>
+<body class="center-page">
+
+  <div class="card admin-card">
+    <div class="logo-block">
+      <div class="logo-icon">🛡️</div>
+      <h1 class="brand">Admin Panel</h1>
+      <p class="tagline">Register voters and manage the election</p>
+    </div>
+
+    <h2 class="section-heading">Register New Voter</h2>
+
+    <div class="field-row">
+      <div>
+        <label class="field-label">Voter ID</label>
+        <input type="text" id="regVoterId" class="field-input" placeholder="e.g. VTR004" maxlength="20"/>
+      </div>
+      <div>
+        <label class="field-label">Full Name</label>
+        <input type="text" id="regName" class="field-input" placeholder="e.g. Ravi Sharma"/>
+      </div>
+    </div>
+
+    <div class="webcam-container small">
+      <video id="regVideo" autoplay playsinline muted></video>
+      <canvas id="regCanvas" style="display:none;"></canvas>
+      <div class="face-overlay">
+        <div class="face-ring" id="regFaceRing"></div>
+      </div>
+      <div class="webcam-label" id="regLabel">Initializing camera…</div>
+    </div>
+
+    <div id="regMsg" class="msg hidden"></div>
+
+    <button class="btn btn-primary" id="regBtn" disabled>📸 Register Voter Face</button>
+
+    <div class="divider"></div>
+
+    <h2 class="section-heading">Registered Voters</h2>
+    <div class="voters-table" id="votersTable">Loading…</div>
+
+    <div class="btn-row" style="margin-top:1rem;">
+      <a href="/" class="btn btn-outline">🏠 Home</a>
+      <a href="/results" class="btn btn-outline">📊 Results</a>
+    </div>
+  </div>
+
+  <script>
+    const regVideo  = document.getElementById("regVideo");
+    const regCanvas = document.getElementById("regCanvas");
+    const regBtn    = document.getElementById("regBtn");
+    const regMsg    = document.getElementById("regMsg");
+    const regLabel  = document.getElementById("regLabel");
+    const regRing   = document.getElementById("regFaceRing");
+
+    async function startCamera() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480, facingMode: "user" } });
+        regVideo.srcObject = stream;
+        regVideo.onloadedmetadata = () => {
+          regCanvas.width  = regVideo.videoWidth;
+          regCanvas.height = regVideo.videoHeight;
+          regBtn.disabled  = false;
+          regLabel.textContent = "✅ Camera ready";
+          regRing.classList.add("ready");
+        };
+      } catch {
+        regLabel.textContent = "❌ Camera access denied.";
+      }
+    }
+
+    regBtn.addEventListener("click", async () => {
+      const voter_id = document.getElementById("regVoterId").value.trim().toUpperCase();
+      const name     = document.getElementById("regName").value.trim();
+
+      if (!voter_id || !name) {
+        showMsg("❌ Please fill in Voter ID and Name.", "error");
+        return;
+      }
+
+      const ctx = regCanvas.getContext("2d");
+      ctx.drawImage(regVideo, 0, 0, regCanvas.width, regCanvas.height);
+      const frame = regCanvas.toDataURL("image/jpeg", 0.9);
+
+      regBtn.disabled = true;
+      regBtn.textContent = "Registering…";
+      regRing.classList.add("scanning");
+
+      try {
+        const res  = await fetch("/api/admin/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ voter_id, name, frame })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          showMsg("✅ " + data.message, "success");
+          regRing.classList.remove("scanning");
+          regRing.classList.add("verified");
+          document.getElementById("regVoterId").value = "";
+          document.getElementById("regName").value = "";
+          loadVoters();
+        } else {
+          showMsg("❌ " + data.message, "error");
+          regRing.classList.remove("scanning");
+        }
+      } catch {
+        showMsg("❌ Server error.", "error");
+        regRing.classList.remove("scanning");
+      }
+
+      regBtn.disabled = false;
+      regBtn.textContent = "📸 Register Voter Face";
+    });
+
+    async function loadVoters() {
+      try {
+        const res  = await fetch("/api/admin/voters");
+        const data = await res.json();
+        const tbl  = document.getElementById("votersTable");
+        if (!data.voters.length) { tbl.textContent = "No voters registered."; return; }
+        tbl.innerHTML = `
+          <table class="admin-table">
+            <thead><tr><th>Voter ID</th><th>Name</th><th>Voted?</th><th>Voted At</th></tr></thead>
+            <tbody>
+              ${data.voters.map(v => `
+                <tr>
+                  <td><code>${v.voter_id}</code></td>
+                  <td>${v.name}</td>
+                  <td>${v.has_voted ? "✅ Yes" : "⭕ No"}</td>
+                  <td>${v.voted_at || "—"}</td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        `;
+      } catch { document.getElementById("votersTable").textContent = "Error loading voters."; }
+    }
+
+    function showMsg(text, type) {
+      regMsg.textContent = text;
+      regMsg.className = `msg ${type}`;
+    }
+
+    startCamera();
+    loadVoters();
+  </script>
+</body>
+</html>

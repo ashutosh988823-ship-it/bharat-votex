@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Bharat Votex — Biometric Verification</title>
+  <link rel="stylesheet" href="/static/css/style.css"/>
+</head>
+<body class="center-page">
+
+  <div class="card verify-card">
+    <div class="logo-block">
+      <div class="logo-icon">📷</div>
+      <h1 class="brand">Biometric Verification</h1>
+      <p class="tagline">Look directly at the camera for face scan</p>
+    </div>
+
+    <div class="steps-bar">
+      <div class="step done">1. ID</div>
+      <div class="step-arrow">→</div>
+      <div class="step active">2. Face Scan</div>
+      <div class="step-arrow">→</div>
+      <div class="step">3. Vote</div>
+    </div>
+
+    <div class="webcam-container">
+      <video id="video" autoplay playsinline muted></video>
+      <canvas id="canvas" style="display:none;"></canvas>
+      <div class="face-overlay">
+        <div class="face-ring" id="faceRing"></div>
+      </div>
+      <div class="webcam-label" id="webcamLabel">Initializing camera…</div>
+    </div>
+
+    <div id="verifyMsg" class="msg hidden"></div>
+
+    <div class="confidence-bar-wrap hidden" id="confWrap">
+      <label class="field-label">Match Confidence</label>
+      <div class="confidence-bar">
+        <div class="confidence-fill" id="confFill"></div>
+      </div>
+      <span class="conf-pct" id="confPct">0%</span>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-outline" onclick="window.location.href='/'">← Back</button>
+      <button class="btn btn-primary" id="scanBtn" disabled>
+        <span id="scanBtnText">📷 Scan Face</span>
+      </button>
+    </div>
+  </div>
+
+  <script>
+    const video    = document.getElementById("video");
+    const canvas   = document.getElementById("canvas");
+    const scanBtn  = document.getElementById("scanBtn");
+    const msg      = document.getElementById("verifyMsg");
+    const faceRing = document.getElementById("faceRing");
+    const label    = document.getElementById("webcamLabel");
+
+    let stream = null;
+
+    async function startCamera() {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480, facingMode: "user" } });
+        video.srcObject = stream;
+        video.onloadedmetadata = () => {
+          canvas.width  = video.videoWidth;
+          canvas.height = video.videoHeight;
+          scanBtn.disabled = false;
+          label.textContent = "✅ Camera ready — click Scan Face";
+          faceRing.classList.add("ready");
+        };
+      } catch (err) {
+        label.textContent = "❌ Camera access denied. Please allow camera access.";
+        showMsg("Camera is required for biometric verification.", "error");
+      }
+    }
+
+    scanBtn.addEventListener("click", async () => {
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const frame = canvas.toDataURL("image/jpeg", 0.9);
+
+      scanBtn.disabled = true;
+      scanBtn.innerHTML = '<span>🔍 Verifying…</span>';
+      faceRing.classList.add("scanning");
+      msg.className = "msg hidden";
+
+      try {
+        const res  = await fetch("/api/biometric/verify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ frame })
+        });
+        const data = await res.json();
+
+        showConfidence(data.confidence || 0);
+
+        if (data.success) {
+          faceRing.classList.remove("scanning");
+          faceRing.classList.add("verified");
+          showMsg("✅ " + data.message, "success");
+          if (stream) stream.getTracks().forEach(t => t.stop());
+          setTimeout(() => window.location.href = "/vote", 2000);
+        } else {
+          faceRing.classList.remove("scanning");
+          faceRing.classList.add("failed");
+          showMsg("❌ " + data.message, "error");
+          scanBtn.disabled = false;
+          scanBtn.innerHTML = '<span>📷 Try Again</span>';
+          setTimeout(() => {
+            faceRing.classList.remove("failed");
+            faceRing.classList.add("ready");
+          }, 2000);
+        }
+      } catch {
+        showMsg("❌ Server error. Please try again.", "error");
+        scanBtn.disabled = false;
+        scanBtn.innerHTML = '<span>📷 Scan Face</span>';
+        faceRing.classList.remove("scanning");
+      }
+    });
+
+    function showMsg(text, type) {
+      msg.textContent = text;
+      msg.className = `msg ${type}`;
+    }
+
+    function showConfidence(conf) {
+      if (!conf) return;
+      const pct = Math.round(conf * 100);
+      document.getElementById("confWrap").classList.remove("hidden");
+      document.getElementById("confFill").style.width = pct + "%";
+      document.getElementById("confFill").style.background = pct > 70 ? "var(--green)" : pct > 50 ? "var(--amber)" : "var(--red)";
+      document.getElementById("confPct").textContent = pct + "%";
+    }
+
+    startCamera();
+  </script>
+</body>
+</html>
