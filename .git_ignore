@@ -1,0 +1,7 @@
+venv/
+__pycache__/
+*.pyc
+*.pyo
+voter_faces/
+database/bharat_votex.db
+.env
