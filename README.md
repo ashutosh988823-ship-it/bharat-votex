@@ -145,4 +145,4 @@ http://127.0.0.1:5000
 
 **Project:** Bharat Votex
 **Degree:** B.Tech — Artificial Intelligence & Machine Learning
-**Year:** Final Year (2024–25)
+**Year:** Final Year (2025–26)
